@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#9147ff"/>
+  <text x="64" y="48" text-anchor="middle" font-size="24" font-family="Arial" font-weight="bold" fill="#e0d0ff">RU → EN</text>
+  <rect x="20" y="60" width="88" height="44" rx="8" fill="rgba(0,0,0,0.3)"/>
+  <text x="64" y="88" text-anchor="middle" font-size="22" font-family="Arial" font-weight="bold" fill="white">Captions</text>
+</svg>

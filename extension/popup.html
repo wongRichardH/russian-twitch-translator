@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Twitch RU→EN Captions</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 360px;
+      min-height: 180px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 16px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .header img { width: 28px; height: 28px; }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #cba6f7;
+    }
+    .header .subtitle {
+      font-size: 11px;
+      color: #6c7086;
+    }
+
+    /* Toggle button */
+    .toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .toggle-btn.start {
+      background: #a6e3a1;
+      color: #1e1e2e;
+    }
+    .toggle-btn.start:hover { background: #94e2d5; }
+    .toggle-btn.stop {
+      background: #f38ba8;
+      color: #1e1e2e;
+    }
+    .toggle-btn.stop:hover { background: #eba0ac; }
+    .toggle-btn:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    /* Status area */
+    .status {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #313244;
+      font-size: 12px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+    }
+    .status-label { color: #6c7086; }
+    .status-value { color: #cdd6f4; font-weight: 500; }
+    .status-value.active { color: #a6e3a1; }
+    .status-value.inactive { color: #6c7086; }
+    .status-value.webgpu { color: #89dceb; }
+    .status-value.wasm { color: #fab387; }
+
+    /* Error banner */
+    .error-banner {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #45243e;
+      color: #f38ba8;
+      font-size: 11px;
+      display: none;
+    }
+    .error-banner.visible { display: block; }
+
+    /* Progress bar for model download */
+    .progress-wrap {
+      margin-top: 10px;
+      display: none;
+    }
+    .progress-wrap.visible { display: block; }
+    .progress-bar {
+      height: 6px;
+      background: #313244;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #cba6f7, #89b4fa);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .progress-label {
+      font-size: 11px;
+      color: #6c7086;
+      margin-top: 4px;
+      text-align: center;
+    }
+
+    /* Live log panel */
+    .log-section {
+      margin-top: 12px;
+    }
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .log-header h2 {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6c7086;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .log-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .log-action-btn {
+      background: none;
+      border: none;
+      color: #6c7086;
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .log-action-btn:hover { color: #cba6f7; }
+    .log-action-btn.copied { color: #a6e3a1; }
+
+    .log-panel {
+      max-height: 180px;
+      overflow-y: auto;
+      background: #11111b;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .log-panel::-webkit-scrollbar { width: 4px; }
+    .log-panel::-webkit-scrollbar-track { background: #11111b; }
+    .log-panel::-webkit-scrollbar-thumb { background: #45475a; border-radius: 2px; }
+
+    .log-entry { padding: 1px 0; word-break: break-word; }
+    .log-entry .ts { color: #585b70; }
+    .log-entry .src { color: #89b4fa; }
+    .log-entry.error .msg { color: #f38ba8; }
+    .log-entry.warn .msg { color: #fab387; }
+    .log-entry.log .msg { color: #a6e3a1; }
+    .log-empty { color: #45475a; font-style: italic; }
+
+    /* Footer */
+    .footer {
+      margin-top: 14px;
+      text-align: center;
+    }
+    .footer a {
+      font-size: 11px;
+      color: #6c7086;
+      text-decoration: none;
+    }
+    .footer a:hover { color: #cba6f7; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="icons/icon48.png" alt="">
+    <div>
+      <h1>RU → EN Captions</h1>
+      <div class="subtitle">Live Twitch translation</div>
+    </div>
+  </div>
+
+  <button id="toggleBtn" class="toggle-btn start" disabled>
+    Loading...
+  </button>
+
+  <div class="status" id="statusPanel">
+    <div class="status-row">
+      <span class="status-label">Status</span>
+      <span class="status-value" id="statusText">Idle</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Device</span>
+      <span class="status-value" id="deviceText">—</span>
+    </div>
+  </div>
+
+  <div class="error-banner" id="errorBanner"></div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-label" id="progressLabel">Loading model...</div>
+  </div>
+
+  <div class="log-section">
+    <div class="log-header">
+      <h2>Live Log</h2>
+      <div class="log-actions">
+        <button class="log-action-btn" id="logCopyBtn" title="Copy logs to clipboard">Copy</button>
+        <button class="log-action-btn" id="logClearBtn" title="Clear all logs">Trash</button>
+      </div>
+    </div>
+    <div class="log-panel" id="logPanel">
+      <div class="log-empty">Waiting for events...</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="options.html" target="_blank">Settings</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

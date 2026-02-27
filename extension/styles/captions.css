@@ -1,0 +1,66 @@
+/* ─── Twitch Caption Overlay ──────────────────────────────────────────── */
+
+.twitch-caption-overlay {
+  position: absolute;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 8px 16px;
+  max-width: 80%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.twitch-caption-overlay.visible {
+  opacity: 1;
+}
+
+.twitch-caption-overlay.fading {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+/* ─── Position Variants ──────────────────────────────────────────────── */
+
+.twitch-caption-overlay.caption-pos-bc {
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.twitch-caption-overlay.caption-pos-bl {
+  bottom: 48px;
+  left: 16px;
+  text-align: left;
+}
+
+.twitch-caption-overlay.caption-pos-br {
+  bottom: 48px;
+  right: 16px;
+  text-align: right;
+}
+
+/* ─── Caption Text ───────────────────────────────────────────────────── */
+
+.twitch-caption-overlay .caption-text {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  max-width: 100%;
+  word-wrap: break-word;
+}
+
+/* ─── Error State ────────────────────────────────────────────────────── */
+
+.twitch-caption-overlay .caption-text.caption-error {
+  background: rgba(180, 40, 60, 0.85);
+  color: #ffffff;
+  font-size: 14px;
+}

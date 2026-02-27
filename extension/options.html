@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Twitch Captions — Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 32px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 22px;
+      color: #cba6f7;
+      margin-bottom: 4px;
+    }
+    .page-subtitle {
+      font-size: 13px;
+      color: #6c7086;
+      margin-bottom: 28px;
+    }
+
+    .section {
+      background: #313244;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .section h2 {
+      font-size: 14px;
+      color: #89b4fa;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cdd6f4;
+      margin-bottom: 6px;
+    }
+    .field .hint {
+      font-size: 11px;
+      color: #6c7086;
+      margin-top: 4px;
+    }
+
+    select, input[type="number"], input[type="range"] {
+      background: #1e1e2e;
+      border: 1px solid #45475a;
+      color: #cdd6f4;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      width: 100%;
+      outline: none;
+    }
+    select:focus, input:focus {
+      border-color: #cba6f7;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #cba6f7;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+    }
+    .checkbox-row label {
+      margin-bottom: 0;
+      font-weight: 500;
+    }
+
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .range-row input { flex: 1; }
+    .range-value {
+      min-width: 44px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cba6f7;
+    }
+
+    /* Debug log */
+    .log-panel {
+      margin-top: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: #11111b;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      display: none;
+    }
+    .log-panel.visible { display: block; }
+    .log-entry { padding: 2px 0; }
+    .log-entry .ts { color: #6c7086; }
+    .log-entry .src { color: #89b4fa; }
+    .log-entry.error .msg { color: #f38ba8; }
+    .log-entry.warn .msg { color: #fab387; }
+    .log-entry.log .msg { color: #a6e3a1; }
+
+    button.small {
+      background: #45475a;
+      border: none;
+      color: #cdd6f4;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    button.small:hover { background: #585b70; }
+
+    .save-status {
+      margin-top: 16px;
+      font-size: 12px;
+      color: #a6e3a1;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .save-status.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <h1>Caption Settings</h1>
+  <p class="page-subtitle">Configure how live captions appear on Twitch streams.</p>
+
+  <!-- Model -->
+  <div class="section">
+    <h2>AI Model</h2>
+    <div class="field">
+      <label for="modelSize">Whisper Model Size</label>
+      <select id="modelSize">
+        <option value="tiny">Tiny (~75 MB) — Fastest, lower accuracy</option>
+        <option value="base" selected>Base (~150 MB) — Recommended</option>
+      </select>
+      <p class="hint">Model downloads once on first use and is cached locally.</p>
+    </div>
+  </div>
+
+  <!-- Captions -->
+  <div class="section">
+    <h2>Caption Appearance</h2>
+    <div class="field">
+      <label>Font Size</label>
+      <div class="range-row">
+        <input type="range" id="captionFontSize" min="12" max="32" value="18" step="1">
+        <span class="range-value" id="fontSizeValue">18px</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="captionPosition">Position</label>
+      <select id="captionPosition">
+        <option value="bottom-center" selected>Bottom Center</option>
+        <option value="bottom-left">Bottom Left</option>
+        <option value="bottom-right">Bottom Right</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Display Duration</label>
+      <div class="range-row">
+        <input type="range" id="captionDuration" min="2000" max="10000" value="4000" step="500">
+        <span class="range-value" id="durationValue">4s</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Behavior -->
+  <div class="section">
+    <h2>Behavior</h2>
+    <div class="field">
+      <div class="checkbox-row">
+        <input type="checkbox" id="autoEnable" checked>
+        <label for="autoEnable">Auto-enable captions when visiting Twitch</label>
+      </div>
+    </div>
+    <div class="field">
+      <div class="checkbox-row">
+        <input type="checkbox" id="debugMode">
+        <label for="debugMode">Enable debug mode (verbose logging)</label>
+      </div>
+      <p class="hint">When enabled, all log levels are persisted — not just errors.</p>
+    </div>
+  </div>
+
+  <!-- Debug Log -->
+  <div class="section">
+    <h2>Debug Log</h2>
+    <button class="small" id="loadLogBtn">Load Logs</button>
+    <button class="small" id="clearLogBtn">Clear</button>
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+  <div class="save-status" id="saveStatus">Settings saved!</div>
+
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "russian-twitch-translator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension: live Russian-to-English captions on Twitch via local Whisper WASM",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "clean": "rm -rf extension/background.js extension/offscreen.js extension/content.js extension/popup.js extension/options.js extension/debug.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1"
+  }
+}
