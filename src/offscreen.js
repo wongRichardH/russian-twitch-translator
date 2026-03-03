@@ -47,6 +47,12 @@ let sampleBufferLength = 0;
 // Audio chunk buffer — holds PCM chunks recorded while model is still loading
 let pendingChunks = [];
 
+// Inference lock — prevents concurrent Whisper calls from stalling the pipeline
+let inferenceRunning = false;
+
+// Playback element reference for cleanup
+let playbackAudio = null;
+
 // ─── Settings ─────────────────────────────────────────────────────────────
 
 // Offscreen documents don't have chrome.storage access.
@@ -189,8 +195,19 @@ async function processAudioChunk(float32_16k) {
       chunkId,
       rms: rms.toFixed(6),
     });
+    // Send heartbeat so content.js knows the pipeline is alive during silence
+    sendHeartbeat();
     return;
   }
+
+  // Prevent concurrent inference — WASM pipeline can't handle overlapping calls.
+  // If a previous inference is still running, drop this chunk.
+  if (inferenceRunning) {
+    CaptionDebug.warn('offscreen', 'Inference still running — dropping chunk', { chunkId });
+    return;
+  }
+
+  inferenceRunning = true;
 
   CaptionDebug.log('offscreen', 'Processing audio chunk', {
     chunkId,
@@ -244,7 +261,17 @@ async function processAudioChunk(float32_16k) {
       error: err.message,
       stack: err.stack,
     });
+  } finally {
+    inferenceRunning = false;
   }
+}
+
+// ─── Pipeline Heartbeat ─────────────────────────────────────────────────
+
+// Notify content.js the pipeline is alive, even when no captions are produced
+// (e.g. during silence). This prevents false "stalled" warnings.
+function sendHeartbeat() {
+  chrome.runtime.sendMessage({ type: 'PIPELINE_HEARTBEAT' }).catch(() => {});
 }
 
 // ─── Web Audio Capture ──────────────────────────────────────────────────
@@ -283,8 +310,49 @@ async function startRecording(streamId) {
     tracks: mediaStream.getAudioTracks().length,
   });
 
+  // Play the captured audio back so the user can still hear it.
+  // getUserMedia with chromeMediaSource:'tab' mutes the original tab audio;
+  // routing it to an <audio> element restores playback.
+  playbackAudio = document.createElement('audio');
+  playbackAudio.srcObject = mediaStream;
+  playbackAudio.play().catch((err) => {
+    CaptionDebug.warn('offscreen', 'Audio playback failed', { error: err.message });
+  });
+
+  // Monitor media stream health — tracks can end if Chrome revokes capture
+  for (const track of mediaStream.getAudioTracks()) {
+    track.addEventListener('ended', () => {
+      CaptionDebug.error('offscreen', 'Audio track ended unexpectedly', {
+        label: track.label,
+        readyState: track.readyState,
+      });
+      chrome.runtime.sendMessage({
+        type: 'CAPTION_ERROR',
+        error: 'TRACK_ENDED',
+        message: 'Audio capture lost. Click the extension icon to restart.',
+      }).catch(() => {});
+      stopRecording();
+    });
+  }
+
   // Create AudioContext to process raw PCM samples
   audioContext = new AudioContext({ sampleRate: 16000 });
+
+  // Monitor AudioContext state — Chrome can suspend it (e.g. background tab)
+  audioContext.addEventListener('statechange', () => {
+    CaptionDebug.log('offscreen', 'AudioContext state changed', {
+      state: audioContext.state,
+    });
+    if (audioContext.state === 'suspended' && isTranscribing) {
+      CaptionDebug.warn('offscreen', 'AudioContext suspended — attempting resume');
+      audioContext.resume().catch((err) => {
+        CaptionDebug.error('offscreen', 'Failed to resume AudioContext', {
+          error: err.message,
+        });
+      });
+    }
+  });
+
   const source = audioContext.createMediaStreamSource(mediaStream);
 
   // ScriptProcessorNode captures raw Float32 PCM data
@@ -340,6 +408,7 @@ async function startRecording(streamId) {
 
 function stopRecording() {
   isTranscribing = false;
+  inferenceRunning = false;
   pendingChunks = [];
   sampleBuffer = [];
   sampleBufferLength = 0;
@@ -352,6 +421,12 @@ function stopRecording() {
   if (audioContext) {
     audioContext.close().catch(() => {});
     audioContext = null;
+  }
+
+  if (playbackAudio) {
+    playbackAudio.pause();
+    playbackAudio.srcObject = null;
+    playbackAudio = null;
   }
 
   if (mediaStream) {

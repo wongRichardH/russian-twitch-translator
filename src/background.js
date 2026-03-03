@@ -8,10 +8,15 @@ let isCapturing = false;
 // ─── Offscreen Document Management ───────────────────────────────────────
 
 async function hasOffscreenDocument() {
-  const contexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT'],
-  });
-  return contexts.length > 0;
+  try {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+    });
+    return contexts.length > 0;
+  } catch (err) {
+    CaptionDebug.warn('background', 'getContexts failed', { error: err.message });
+    return false;
+  }
 }
 
 async function ensureOffscreenDocument() {
@@ -20,8 +25,8 @@ async function ensureOffscreenDocument() {
   CaptionDebug.log('background', 'Creating offscreen document');
   await chrome.offscreen.createDocument({
     url: 'offscreen.html',
-    reasons: ['USER_MEDIA'],
-    justification: 'Audio processing and Whisper WASM inference for live captioning',
+    reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
+    justification: 'Audio capture, playback, and Whisper WASM inference for live captioning',
   });
   CaptionDebug.log('background', 'Offscreen document created');
 }
@@ -295,6 +300,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'MODEL_PROGRESS':
       return false;
 
+    // Offscreen heartbeat — forward to content script so it knows pipeline is alive
+    case 'PIPELINE_HEARTBEAT':
+      if (activeTabId) {
+        chrome.tabs.sendMessage(activeTabId, { type: 'PIPELINE_HEARTBEAT' }).catch(() => {});
+      }
+      return false;
+
     // Offscreen document reports which device it's using (webgpu/wasm)
     case 'DEVICE_MODE':
       chrome.storage.local.set({ deviceMode: msg.deviceMode });
@@ -326,18 +338,22 @@ async function handleToggle(tabId) {
 // On service worker startup, clean up any stale offscreen documents
 // left from a previous session (e.g. after extension reload).
 (async () => {
-  // Check for any tabs Chrome thinks are still captured
   try {
-    const captured = await chrome.tabCapture.getCapturedTabs();
-    if (captured.length > 0) {
-      CaptionDebug.log('background', 'Found stale captures on startup', {
-        tabs: captured.map((t) => ({ tabId: t.tabId, status: t.status })),
-      });
-    }
-  } catch (_) {}
+    // Check for any tabs Chrome thinks are still captured
+    try {
+      const captured = await chrome.tabCapture.getCapturedTabs();
+      if (captured.length > 0) {
+        CaptionDebug.log('background', 'Found stale captures on startup', {
+          tabs: captured.map((t) => ({ tabId: t.tabId, status: t.status })),
+        });
+      }
+    } catch (_) {}
 
-  await closeOffscreenDocument();
-  CaptionDebug.log('background', 'Startup cleanup done — cleared stale offscreen documents');
+    await closeOffscreenDocument();
+    CaptionDebug.log('background', 'Startup cleanup done — cleared stale offscreen documents');
+  } catch (err) {
+    CaptionDebug.error('background', 'Startup cleanup failed', { error: err.message });
+  }
 })();
 
 // ─── Tab Lifecycle ───────────────────────────────────────────────────────

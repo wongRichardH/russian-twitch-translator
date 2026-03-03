@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const m = require\\(''./manifest.json''\\); console.log\\(''Manifest valid, MV'' + m.manifest_version\\); console.log\\(''Action:'', JSON.stringify\\(m.action\\)\\); console.log\\(''Permissions:'', m.permissions\\);\")"
+    ]
+  }
+}

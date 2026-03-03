@@ -20,6 +20,7 @@ let overlayEl = null;
 let captionTextEl = null;
 let fadeTimeout = null;
 let lastCaptionTimestamp = null;
+let lastPipelineActivity = null; // updated by both captions AND heartbeats
 let healthCheckInterval = null;
 let sessionActive = false;
 let settings = {
@@ -161,12 +162,17 @@ function showCaptionError(message) {
 
 function startHealthCheck() {
   healthCheckInterval = setInterval(() => {
-    if (lastCaptionTimestamp && (Date.now() - lastCaptionTimestamp > CAPTION_TIMEOUT_MS)) {
-      CaptionDebug.warn('content', 'No captions received recently — pipeline may be stalled', {
-        lastCaption: new Date(lastCaptionTimestamp).toISOString(),
-        silenceMs: Date.now() - lastCaptionTimestamp,
+    // Use pipeline activity (captions + heartbeats) to determine if pipeline is alive.
+    // This prevents false stall warnings during silence — the offscreen document
+    // sends heartbeats even when skipping silent chunks.
+    if (
+      lastPipelineActivity &&
+      Date.now() - lastPipelineActivity > CAPTION_TIMEOUT_MS
+    ) {
+      CaptionDebug.warn('content', 'No pipeline activity recently — pipeline may be stalled', {
+        lastActivity: new Date(lastPipelineActivity).toISOString(),
+        silenceMs: Date.now() - lastPipelineActivity,
       });
-      showCaptionError('Captions may have stalled. Click the extension icon to check status.');
     }
   }, HEALTH_CHECK_INTERVAL_MS);
 }
@@ -177,6 +183,7 @@ function stopHealthCheck() {
     healthCheckInterval = null;
   }
   lastCaptionTimestamp = null;
+  lastPipelineActivity = null;
 }
 
 // ─── MutationObserver for Twitch SPA ─────────────────────────────────────
@@ -203,7 +210,12 @@ chrome.runtime.onMessage.addListener((msg) => {
   switch (msg.type) {
     case 'CAPTION_TEXT':
       lastCaptionTimestamp = Date.now();
+      lastPipelineActivity = Date.now();
       renderCaption(msg.text);
+      break;
+
+    case 'PIPELINE_HEARTBEAT':
+      lastPipelineActivity = Date.now();
       break;
 
     case 'CAPTION_ERROR':
@@ -217,6 +229,8 @@ chrome.runtime.onMessage.addListener((msg) => {
     case 'CAPTION_SESSION_START':
       CaptionDebug.log('content', 'Caption session started');
       sessionActive = true;
+      lastCaptionTimestamp = Date.now();
+      lastPipelineActivity = Date.now(); // prevent premature stall warning during model load
       loadSettings();
       createOverlay();
       renderCaption('Captions started — loading model...');
