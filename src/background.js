@@ -158,7 +158,7 @@ async function startCapture(tabId) {
     // Read settings from storage to pass to offscreen doc (which can't access chrome.storage)
     const settings = await chrome.storage.local.get({
       modelSize: 'base',
-      chunkDurationMs: 5000,
+      chunkDurationMs: 3000,
     });
 
     const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });

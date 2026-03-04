@@ -50,6 +50,12 @@ let pendingChunks = [];
 // Inference lock — prevents concurrent Whisper calls from stalling the pipeline
 let inferenceRunning = false;
 
+// Queue the latest chunk so it runs after current inference (instead of dropping)
+let queuedChunk = null;
+
+// Track last emitted text to suppress consecutive duplicates
+let lastEmittedText = '';
+
 // Playback element reference for cleanup
 let playbackAudio = null;
 
@@ -59,7 +65,7 @@ let playbackAudio = null;
 // Settings are passed from background.js via the START_TRANSCRIPTION message.
 let currentSettings = {
   modelSize: 'base',
-  chunkDurationMs: 5000,
+  chunkDurationMs: 3000,
 };
 
 // ─── Model Loading ───────────────────────────────────────────────────────
@@ -201,19 +207,23 @@ async function processAudioChunk(float32_16k) {
   }
 
   // Prevent concurrent inference — WASM pipeline can't handle overlapping calls.
-  // If a previous inference is still running, drop this chunk.
+  // Queue the latest chunk so it runs immediately after current inference finishes.
   if (inferenceRunning) {
-    CaptionDebug.warn('offscreen', 'Inference still running — dropping chunk', { chunkId });
+    queuedChunk = float32_16k;
+    CaptionDebug.log('offscreen', 'Inference busy — queued chunk', { chunkId });
     return;
   }
 
+  await runInference(float32_16k, chunkId);
+}
+
+async function runInference(float32_16k, chunkId) {
   inferenceRunning = true;
 
   CaptionDebug.log('offscreen', 'Processing audio chunk', {
     chunkId,
     audioSamples: float32_16k.length,
     audioDurationMs: Math.round((float32_16k.length / 16000) * 1000),
-    rms: rms.toFixed(4),
   });
 
   const inferenceStart = performance.now();
@@ -248,6 +258,13 @@ async function processAudioChunk(float32_16k) {
       return;
     }
 
+    // Suppress consecutive duplicate translations
+    if (text === lastEmittedText) {
+      CaptionDebug.log('offscreen', 'Filtered duplicate text', { chunkId, text });
+      return;
+    }
+    lastEmittedText = text;
+
     chrome.runtime.sendMessage({
       type: 'CAPTION_TEXT',
       text,
@@ -263,6 +280,14 @@ async function processAudioChunk(float32_16k) {
     });
   } finally {
     inferenceRunning = false;
+
+    // Process queued chunk immediately (most recent audio while we were busy)
+    if (queuedChunk) {
+      const nextChunk = queuedChunk;
+      queuedChunk = null;
+      chunkCount++;
+      await runInference(nextChunk, chunkCount);
+    }
   }
 }
 
@@ -468,17 +493,20 @@ async function attemptRecovery() {
     return;
   }
 
+  // AudioContext may be temporarily suspended — try resuming before giving up
+  if (audioContext && audioContext.state === 'suspended') {
+    CaptionDebug.warn('offscreen', 'AudioContext suspended during recovery — attempting resume');
+    try {
+      await audioContext.resume();
+      CaptionDebug.log('offscreen', 'AudioContext resumed successfully');
+      return;
+    } catch (err) {
+      CaptionDebug.error('offscreen', 'Failed to resume AudioContext', { error: err.message });
+    }
+  }
+
   CaptionDebug.error('offscreen', 'Stream is dead — captioning interrupted', {
     audioContextState: audioContext?.state ?? 'null',
-  });
-
-  // Notify content script to show user-facing error
-  chrome.runtime.sendMessage({
-    type: 'CAPTION_ERROR',
-    error: 'SERVICE_WORKER_DIED',
-    message: 'Captions interrupted. Click the extension icon to restart.',
-  }).catch(() => {
-    CaptionDebug.error('offscreen', 'Cannot reach content script — full communication breakdown');
   });
 
   stopKeepAlive();

@@ -17,9 +17,8 @@ const VIDEO_PLAYER_SELECTORS = [
 // ─── State ────────────────────────────────────────────────────────────────
 
 let overlayEl = null;
-let captionTextEl = null;
-let fadeTimeout = null;
 let lastCaptionTimestamp = null;
+const MAX_VISIBLE_LINES = 4;
 let lastPipelineActivity = null; // updated by both captions AND heartbeats
 let healthCheckInterval = null;
 let sessionActive = false;
@@ -54,7 +53,6 @@ function findVideoContainer() {
 function createOverlay() {
   if (document.getElementById(OVERLAY_ID)) {
     overlayEl = document.getElementById(OVERLAY_ID);
-    captionTextEl = overlayEl.querySelector('.caption-text');
     CaptionDebug.log('content', 'Overlay already exists — reusing');
     return true;
   }
@@ -75,8 +73,6 @@ function createOverlay() {
 
   overlayEl = document.createElement('div');
   overlayEl.id = OVERLAY_ID;
-  overlayEl.innerHTML = '<span class="caption-text"></span>';
-  captionTextEl = overlayEl.querySelector('.caption-text');
 
   applyPositionStyle();
   container.appendChild(overlayEl);
@@ -107,55 +103,39 @@ function applyPositionStyle() {
       break;
   }
 
-  if (captionTextEl) {
-    captionTextEl.style.fontSize = settings.captionFontSize;
-  }
 }
 
 function removeOverlay() {
   overlayEl?.remove();
   overlayEl = null;
-  captionTextEl = null;
 }
 
 // ─── Caption Rendering ──────────────────────────────────────────────────
 
 function renderCaption(text) {
-  if (!captionTextEl) {
+  if (!overlayEl) {
     if (!createOverlay()) return;
   }
 
-  captionTextEl.textContent = text;
-  overlayEl.classList.add('visible');
-  overlayEl.classList.remove('fading');
+  // Create a new line element
+  const line = document.createElement('span');
+  line.className = 'caption-line';
+  line.textContent = text;
+  line.style.fontSize = settings.captionFontSize;
+  overlayEl.appendChild(line);
 
-  // Clear previous fade timeout
-  if (fadeTimeout) clearTimeout(fadeTimeout);
+  // Cap visible lines — remove oldest immediately
+  while (overlayEl.children.length > MAX_VISIBLE_LINES) {
+    overlayEl.removeChild(overlayEl.firstChild);
+  }
 
-  // Start fade after configured duration
-  fadeTimeout = setTimeout(() => {
-    overlayEl?.classList.add('fading');
-    // Fully hide after fade animation (500ms in CSS)
+  // Fade out and remove this line after the configured duration
+  setTimeout(() => {
+    line.classList.add('fading');
     setTimeout(() => {
-      overlayEl?.classList.remove('visible', 'fading');
+      line.remove();
     }, 500);
   }, settings.captionDuration);
-}
-
-function showCaptionError(message) {
-  if (!captionTextEl) {
-    if (!createOverlay()) return;
-  }
-
-  captionTextEl.textContent = message;
-  captionTextEl.classList.add('caption-error');
-  overlayEl.classList.add('visible');
-
-  // Auto-dismiss error after 10 seconds
-  setTimeout(() => {
-    captionTextEl?.classList.remove('caption-error');
-    overlayEl?.classList.remove('visible');
-  }, 10_000);
 }
 
 // ─── Health Check Watchdog ───────────────────────────────────────────────
@@ -223,7 +203,6 @@ chrome.runtime.onMessage.addListener((msg) => {
         error: msg.error,
         message: msg.message,
       });
-      showCaptionError(msg.message);
       break;
 
     case 'CAPTION_SESSION_START':
